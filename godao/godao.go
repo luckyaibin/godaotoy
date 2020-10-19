@@ -103,7 +103,7 @@ func mayHandleDotName(field string) string {
 //join tableA as A on tableB.field = A.field
 func (this *Dao) Join(joinType string, joinTable string, joinOn string, joinParams []interface{}) Daoer {
 
-	join := fmt.Sprintf("", strings.ToUpper(joinType))
+	join := fmt.Sprintf("%s JOIN %s ON %s ", strings.ToUpper(joinType), joinTable, joinOn)
 	this.queryJoins = append(this.queryJoins, join)
 	return this
 }
