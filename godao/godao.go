@@ -17,6 +17,7 @@ type Daoer interface {
 	Update(fields map[string]interface{}) (int64, error)
 	Where(condition string, condValues []interface{}) Daoer
 	Delete() (int64, error)
+	Join(joinType string, joinTable string, joinOn string, joinParams []interface{}) Daoer
 }
 type Dao struct {
 	db              *sql.DB
@@ -25,7 +26,9 @@ type Dao struct {
 	queryDistinct   bool
 	queryCondition  string
 	queryCondValues []any
-	queryJoins      []string //可以连接多个join
+
+	queryJoins           []string //可以连接多个join
+	queryJoinsParameters []interface{}
 }
 
 func (this *Dao) Table(table string) Daoer {
@@ -39,7 +42,9 @@ func (this *Dao) clearQuery() {
 	this.queryDistinct = false
 	this.queryCondition = ""
 	this.queryCondValues = []interface{}{}
+
 	this.queryJoins = []string{}
+	this.queryJoinsParameters = []interface{}{}
 }
 
 func doAliasTableName(table string) string {
@@ -47,7 +52,7 @@ func doAliasTableName(table string) string {
 	tableSlice := strings.Split(table, " ")
 	//别名
 	if tslen := len(tableSlice); tslen > 1 {
-		return fmt.Sprintf("`%s` AS `%s`", tableSlice[0], tableSlice[1])
+		return fmt.Sprintf("`%s` AS `%s`", tableSlice[0], tableSlice[tslen-1])
 	} else {
 		return fmt.Sprintf("`%s`", tableSlice[0])
 	}
@@ -66,12 +71,12 @@ func (this *Dao) Fields(fields ...string) {
 		//当然xxx可能是aaa.a这种带.的格式,或*
 		if fslen := len(fieldSlice); fslen > 1 {
 			part1 := fieldSlice[0]
-			part1 = mayHandleDotName(part1)
+			part1 = doAliasColumnName(part1)
 			part2 := fieldSlice[fslen-1]
 			field = fmt.Sprintf("%s AS `%s`",
 				part1, part2)
 		} else { //可能有t1.pwd这种带.的
-			field = mayHandleDotName(field)
+			field = doAliasColumnName(field)
 		}
 
 		fieldList = append(fieldList, field)
@@ -79,7 +84,7 @@ func (this *Dao) Fields(fields ...string) {
 	this.queryFields = strings.Join(fieldList, ",")
 	fmt.Println("列名:", this.queryFields)
 }
-func mayHandleDotName(field string) string {
+func doAliasColumnName(field string) string {
 
 	fieldSlice := strings.Split(field, ".")
 	//有.
@@ -103,8 +108,10 @@ func mayHandleDotName(field string) string {
 //join tableA as A on tableB.field = A.field
 func (this *Dao) Join(joinType string, joinTable string, joinOn string, joinParams []interface{}) Daoer {
 
-	join := fmt.Sprintf("%s JOIN %s ON %s ", strings.ToUpper(joinType), joinTable, joinOn)
+	join := fmt.Sprintf("%s JOIN %s ON %s ", strings.ToUpper(joinType), doAliasTableName(joinTable), joinOn)
 	this.queryJoins = append(this.queryJoins, join)
+	this.queryJoinsParameters = append(this.queryJoinsParameters, joinParams...)
+	fmt.Println("JOIN :", this.queryJoins)
 	return this
 }
 func (this *Dao) Delete() (int64, error) {
@@ -244,6 +251,8 @@ func NewDaoer(config map[string]string) (Daoer, error) {
 	err = db.Ping()
 	if err != nil {
 		return nil, err
+	} else {
+		fmt.Println("ping ok,连接数据库成功!")
 	}
 	dao := &Dao{}
 	dao.db = db

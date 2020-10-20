@@ -13,7 +13,8 @@ func main() {
 	config["username"] = "root"
 	config["password"] = "123456"
 	config["protocol"] = "tcp"
-	config["address"] = "127.0.0.1:3306"
+	//config["address"] = "127.0.0.1:3306"
+	config["address"] = "192.168.1.2:3306"
 	config["dbname"] = "test1"
 	config["collation"] = "utf8mb4_general_ci"
 	dao, err := godao.NewDaoer(config)
@@ -32,6 +33,7 @@ func main() {
 		})
 	fmt.Println("update:", count, err)
 	dao.Table("author").Fields("t.ooo", "t.*", "*", "name as n", "password p")
+	dao.Table("author").Join("LEFT", "user as u", "author.id = u.id and author.id > ?", []interface{}{59})
 }
 
 func main0() {
