@@ -104,6 +104,16 @@ func doAliasColumnName(field string) string {
 
 }
 
+func (this *Dao) GroupBy(fields ...string) {
+
+}
+
+/* select field1,field2 from tableName where column1 = value1
+SELECT Websites.id, Websites.name, access_log.count, access_log.date
+FROM Websites
+INNER JOIN access_log
+ON Websites.id=access_log.site_id;
+*/
 //INNERJOIN LEFTJOIN RIGHTJOIN
 //join tableA as A on tableB.field = A.field
 func (this *Dao) Join(joinType string, joinTable string, joinOn string, joinParams []interface{}) Daoer {
