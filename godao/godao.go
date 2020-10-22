@@ -15,20 +15,31 @@ type Daoer interface {
 	Fields(fields ...string)
 	Insert(fields map[string]interface{}) (int64, error)
 	Update(fields map[string]interface{}) (int64, error)
-	Where(condition string, condValues []interface{}) Daoer
 	Delete() (int64, error)
+	Where(condition string, condValues []interface{}) Daoer
+
 	Join(joinType string, joinTable string, joinOn string, joinParams []interface{}) Daoer
+	GroupBy(fields ...string) Daoer
+	Having(condition string, condValues []interface{}) Daoer
 }
 type Dao struct {
-	db              *sql.DB
-	queryTable      string
-	queryFields     string
-	queryDistinct   bool
-	queryCondition  string
-	queryCondValues []any
+	db            *sql.DB
+	queryTable    string
+	queryFields   string
+	queryDistinct bool
+	//update delete也用到
+	queryWhereCondition  string
+	queryWhereCondValues []any
 
-	queryJoins           []string //可以连接多个join
-	queryJoinsParameters []interface{}
+	queryJoins            []string //可以连接多个join
+	queryJoinsParameters  []interface{}
+	queryGroupBy          string
+	queryHavingCondition  string
+	queryHavingParameters []interface{}
+
+	queryOrderBy string
+	queryLimit   string
+	queryOffset  string
 }
 
 func (this *Dao) Table(table string) Daoer {
@@ -40,11 +51,17 @@ func (this *Dao) clearQuery() {
 	this.queryTable = ""
 	this.queryFields = "*"
 	this.queryDistinct = false
-	this.queryCondition = ""
-	this.queryCondValues = []interface{}{}
+	this.queryWhereCondition = ""
+	this.queryWhereCondValues = []interface{}{}
 
 	this.queryJoins = []string{}
 	this.queryJoinsParameters = []interface{}{}
+
+	this.queryGroupBy = ""
+	this.queryOrderBy = ""
+
+	this.queryLimit = ""
+	this.queryOffset = ""
 }
 
 func doAliasTableName(table string) string {
@@ -104,8 +121,85 @@ func doAliasColumnName(field string) string {
 
 }
 
-func (this *Dao) GroupBy(fields ...string) {
+func (this *Dao) GroupBy(fields ...string) Daoer {
+	fieldSlice := []string{}
+	for _, field := range fields {
+		fieldSlice = append(fieldSlice, doAliasColumnName(field))
+	}
+	this.queryGroupBy = strings.Join(fieldSlice, ",")
+	return this
+}
 
+//order by field,order by field ASC,order by field desc
+//order by field1,field2 asc
+func (this *Dao) OrderBy(fields ...string) Daoer {
+	//field, field asc ,t.field asc
+	fieldSlice := []string{}
+	for _, field := range fields {
+		if colmnSlice := strings.Split(field, " "); len(colmnSlice) > 1 { //有空格
+			fieldSlice = append(fieldSlice, doAliasColumnName(colmnSlice[0])+" "+colmnSlice[1])
+		} else {
+			fieldSlice = append(fieldSlice, doAliasColumnName(colmnSlice[0]))
+		}
+	}
+	this.queryOrderBy = strings.Join(fieldSlice, ",")
+	return this
+}
+
+//limit 10;limit 10 offset 0
+//限制结果集数量
+func (this *Dao) Limit(size int) Daoer {
+	this.queryLimit = string(size)
+	return this
+}
+
+//必须搭配Limit使用
+func (this *Dao) Offset(offset int) Daoer {
+	this.queryOffset = string(offset)
+	return this
+}
+
+//select [DISINCT] col1,coln [JOIN t2  ON t2.col1 = col1]
+func (this *Dao) buildSelect() string {
+
+	query := "SELECT"
+	//distinct
+	if this.queryDistinct {
+		query += " DISTINCT"
+	}
+	//字段部分,是固定的字符串
+	query += " " + this.queryFields
+
+	//表名
+	query += " " + this.queryTable
+
+	//Join
+	for _, join := range this.queryJoins {
+		query += " " + join
+	}
+	//Groupby
+	if "" != this.queryGroupBy {
+		query += " GROUP BY " + this.queryGroupBy
+	}
+	//Having
+	if "" != this.queryHavingCondition {
+		query += " Having" + this.queryHavingCondition
+	}
+	//Order By
+	if "" != this.queryOrderBy {
+		query += " Order By" + this.queryOrderBy
+	}
+	//limit
+	if "" != this.queryOffset && "" != this.queryLimit {
+		query += " Limit" + this.queryLimit + " offset " + this.queryOffset
+	} else if "" != this.queryLimit {
+		query += " Limit" + this.queryLimit
+	}
+	return query
+}
+func (this *Dao) All() {
+	query := this.buildSelect()
+	fmt.Println(query)
 }
 
 /* select field1,field2 from tableName where column1 = value1
@@ -124,25 +218,21 @@ func (this *Dao) Join(joinType string, joinTable string, joinOn string, joinPara
 	fmt.Println("JOIN :", this.queryJoins)
 	return this
 }
-func (this *Dao) Delete() (int64, error) {
-	deleteFmt := "DELETE FROM %s WHERE %s"
-	sql := fmt.Sprintf(deleteFmt, this.queryTable, this.queryCondition)
-	fmt.Println("Exec delete sql:", sql)
-	result, err := this.db.Exec(sql, this.queryCondValues...)
-	if err != nil {
-		return 0, err
-	}
-	count, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	return count, err
+func (this *Dao) LeftJoin(joinTable string, joinOn string, joinParams []interface{}) Daoer {
+	return this.Join("LEFT", joinTable, joinOn, joinParams)
+}
+
+//结果筛选
+func (this *Dao) Having(condition string, condValues []interface{}) Daoer {
+	this.queryHavingCondition = condition
+	this.queryHavingParameters = condValues
+	return this
 }
 
 func (this *Dao) Where(condition string, condValues []interface{}) Daoer {
 
-	this.queryCondition = condition
-	this.queryCondValues = condValues
+	this.queryWhereCondition = condition
+	this.queryWhereCondValues = condValues
 	return this
 }
 
@@ -150,30 +240,6 @@ func (this *Dao) Where(condition string, condValues []interface{}) Daoer {
 func sq(string string) string {
 	return "'" + string + "'"
 }
-
-func (this *Dao) Update(fields map[string]interface{}) (int64, error) {
-	updateFmt := "UPDATE %s SET %s WHERE %s"
-	fieldsList := []string{}
-	valueList := []interface{}{}
-	for field, value := range fields {
-		fieldsList = append(fieldsList, "`"+field+"`=?")
-		valueList = append(valueList, value)
-	}
-	allValue := append(valueList, this.queryCondValues...)
-	sql := fmt.Sprintf(updateFmt, this.queryTable, strings.Join(fieldsList, ", "), this.queryCondition)
-
-	fmt.Println("Exec update sql:", sql)
-	result, err := this.db.Exec(sql, allValue...)
-	if err != nil {
-		return 0, err
-	}
-	id, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	return id, err
-}
-
 func (this *Dao) Insert(fields map[string]interface{}) (int64, error) {
 	fieldsList := []string{}
 	valueList := []interface{}{}
@@ -202,6 +268,44 @@ func (this *Dao) Insert(fields map[string]interface{}) (int64, error) {
 		return 0, err
 	}
 	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, err
+}
+
+func (this *Dao) Delete() (int64, error) {
+	deleteFmt := "DELETE FROM %s WHERE %s"
+	sql := fmt.Sprintf(deleteFmt, this.queryTable, this.queryWhereCondition)
+	fmt.Println("Exec delete sql:", sql)
+	result, err := this.db.Exec(sql, this.queryWhereCondValues...)
+	if err != nil {
+		return 0, err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return count, err
+}
+
+func (this *Dao) Update(fields map[string]interface{}) (int64, error) {
+	updateFmt := "UPDATE %s SET %s WHERE %s"
+	fieldsList := []string{}
+	valueList := []interface{}{}
+	for field, value := range fields {
+		fieldsList = append(fieldsList, "`"+field+"`=?")
+		valueList = append(valueList, value)
+	}
+	allValue := append(valueList, this.queryWhereCondValues...)
+	sql := fmt.Sprintf(updateFmt, this.queryTable, strings.Join(fieldsList, ", "), this.queryWhereCondition)
+
+	fmt.Println("Exec update sql:", sql)
+	result, err := this.db.Exec(sql, allValue...)
+	if err != nil {
+		return 0, err
+	}
+	id, err := result.RowsAffected()
 	if err != nil {
 		return 0, err
 	}

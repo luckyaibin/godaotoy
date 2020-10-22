@@ -32,8 +32,10 @@ func main() {
 			"password": "sayyes",
 		})
 	fmt.Println("update:", count, err)
-	dao.Table("author").Fields("t.ooo", "t.*", "*", "name as n", "password p")
-	dao.Table("author").Join("LEFT", "user as u", "author.id = u.id and author.id > ?", []interface{}{59})
+	//	dao.Table("author").Fields("t.ooo", "t.*", "*", "name as n", "password p")
+	//	dao.Table("author").Join("LEFT", "user as u", "author.id = u.id and author.id > ?", []interface{}{59})
+
+	dao.Table("author s").Joi
 }
 
 func main0() {
