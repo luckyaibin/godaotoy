@@ -1,11 +1,10 @@
 package main
 
 import (
-	"code.local/godb/godao"
-	"database/sql"
 	"fmt"
+
+	"code.local/godb/godao"
 	_ "github.com/go-sql-driver/mysql"
-	"reflect"
 )
 
 func main() {
@@ -35,37 +34,32 @@ func main() {
 	//	dao.Table("author").Fields("t.ooo", "t.*", "*", "name as n", "password p")
 	//	dao.Table("author").Join("LEFT", "user as u", "author.id = u.id and author.id > ?", []interface{}{59})
 
-	dao.Table("author s").Joi
-}
+	//dao.Table("author s").LeftJoin("teacher t", "s.id = t.id", nil).Fields("s.*", "t.degree deg").Fields("s.name").OrderBy("s.id").Offset(22).All()
+	/*	dao.Table("author as a").
+		LeftJoin("teacher as t", "a.password <> t.id and t.id = ?", []interface{}{1}).
+		Distinct().
+		Fields("a.name as Nm", "t.password").
+		GroupBy("a.id").
+		OrderBy("t.salary", "a.password desc").
+		Having("count(a.id >?)", []interface{}{1}).
+		Limit(10).
+		Offset(22).
+		Rows()
+	*/
+	/*result, err := dao.Table("author as a").
+	Fields("a.password as pwd ", "a.name as Nm").
+	OrderBy("a.password desc").
+	Limit(10).
+	Offset(1).
+	Rows()
+	*/
 
-func main0() {
-	DSN := "root:123456@tcp(192.168.1.2:3306)/test1?collation=utf8mb4_general_ci"
-	//open db
-	db, err := sql.Open("mysql", DSN)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	//fmt.Printf("%+v", db)
-	err = db.Ping()
-	if err != nil {
-		fmt.Println("ping error", err)
-	}
+	//result, err := dao.Table("teacher").Fields("count(name) as N", "birthday B").Where("id > ?", []interface{}{1}).Rows()
+	//result, err := dao.Table("teacher").Fields("count(name) as N", "birthday B").Where("id > ?", []interface{}{1}).Column()
+	//result, err := dao.Table("teacher").Fields("name", "birthday B").Where("id > ?", []interface{}{0}).Column()
+	//result, err := dao.Table("teacher").Fields("name", "birthday B").Where("id > ?", []interface{}{0}).Value()
 
-	//	tx, err := db.Begin()
-	sql := "insert into `author`(`id`,`name`,`password`) values(?,?,?)"
-	multiline := `ggghsj
-	hhhrje
-	`
-	fmt.Println(multiline)
-	//	sql := "select `name`,`password` from author"
-	result, err := db.Exec(sql, 5, "wanger", "1234567")
-	//	result, err := db.Query(sql)
-	fmt.Println(reflect.TypeOf(result))
-	if err != nil {
-		fmt.Println("insert :", err)
-	}
-	//	tx.Exec(sql, 1, "wang", "1234")
-	//	err = tx.Commit()
-	//	fmt.Println("commit:", err)
+	result, err := dao.Table("author").Fields("*").Rows()
+
+	fmt.Println("查询结果", result)
 }
